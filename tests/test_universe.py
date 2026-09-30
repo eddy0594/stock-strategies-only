@@ -108,3 +108,13 @@ def test_get_daily_universe_stale_does_not_wait_when_zero(monkeypatch):
     res = u.get_daily_universe(n=100, wait_minutes=0)
     assert res["is_today"] is False
     assert res["data_date"] == date(2026, 9, 30)
+
+
+def test_fetch_json_reports_security_block_page(monkeypatch):
+    class Blocked:
+        text = "<html><body>FOR SECURITY REASONS, THIS PAGE CAN NOT BE ACCESSED.</body></html>"
+        def raise_for_status(self):
+            pass
+    monkeypatch.setattr(u.requests, "get", lambda *a, **k: Blocked())
+    with pytest.raises(RuntimeError, match="安全機制"):
+        u._fetch_json(u.TWSE_URL, retries=0)

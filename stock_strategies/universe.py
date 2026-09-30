@@ -112,6 +112,9 @@ def _fetch_json(url: str, timeout: int = 30, retries: int = 2) -> list[dict]:
         try:
             r = requests.get(url, headers=_HEADERS, timeout=timeout)
             r.raise_for_status()
+            if r.text.lstrip().startswith("<"):
+                # 交易所防火牆封鎖時會回 200 + HTML「FOR SECURITY REASONS」頁面
+                raise ValueError("回傳 HTML 而非 JSON，可能被交易所安全機制暫時封鎖此 IP")
             data = r.json()
             if not isinstance(data, list):
                 raise ValueError(f"非預期的回傳格式: {type(data).__name__}")
