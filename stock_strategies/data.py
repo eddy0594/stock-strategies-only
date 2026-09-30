@@ -51,9 +51,14 @@ def fetch_finmind(
     return pd.DataFrame()
 
 
-def get_price_history(stock_id: str, years: int = 3) -> pd.DataFrame:
+def get_price_history(stock_id: str, years: int = 3, latest_date=None) -> pd.DataFrame:
+    """latest_date：最新交易日（來自交易所盤後資料）。快取已含該日就不打 API，
+    週末、盤中重複執行都不耗 FinMind 額度；沒給時沿用「快取不是今天就增量更新」。"""
     start = (datetime.now() - timedelta(days=365 * years + 60)).strftime("%Y-%m-%d")
-    df = fetch_finmind_cached("TaiwanStockPrice", stock_id, start)
+    if latest_date is not None:
+        df = fetch_finmind_cached("TaiwanStockPrice", stock_id, start, min_date=latest_date)
+    else:
+        df = fetch_finmind_cached("TaiwanStockPrice", stock_id, start, fresh_days=0)
     if df.empty:
         return df
     df = df.rename(columns={"max": "high", "min": "low", "Trading_Volume": "volume"})

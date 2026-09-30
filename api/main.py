@@ -12,7 +12,7 @@
   DELETE /api/strategies/{id}         刪除
   POST   /api/strategies/generate     AI 生策略 (Gemini)
   GET    /api/market                  目前大盤狀態
-  GET    /api/watchlist               讀 watchlist
+  GET    /api/watchlist               今日股票池（上市＋上櫃成交值前 N 名）
   POST   /api/run                     用指定策略跑一次完整評分
 """
 
@@ -37,10 +37,9 @@ except ImportError:
 
 from stock_strategies import loader
 from stock_strategies.market import get_market_state
-from stock_strategies.sheet import read_watchlist
 
 from api.services.ai_generator import generate_strategy_with_ai
-from api.services.runs import RunBusy, RunManager
+from api.services.runs import RunBusy, RunManager, current_universe
 
 app = FastAPI(title="Stock Strategies API", version="1.1.0")
 runs = RunManager()
@@ -152,9 +151,15 @@ def market():
 @app.get("/api/watchlist")
 def watchlist():
     try:
-        return {"items": read_watchlist()}
+        uni = current_universe()
+        return {
+            "items": uni["items"],
+            "data_date": uni["data_date"].isoformat() if uni["data_date"] else None,
+            "is_today": uni["is_today"],
+            "notes": uni["notes"],
+        }
     except Exception as e:
-        # 沒設定 Google Sheet 時不要整個 500
+        # 交易所 API 連不上時不要整個 500
         return {"items": [], "error": str(e)}
 
 

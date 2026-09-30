@@ -11,8 +11,11 @@ from .volume import detect_patterns, verdict as volume_verdict
 from .loader import merge_params
 
 
-def evaluate(stock_id: str, name: str, strategy: dict | None = None) -> Optional[dict]:
-    """評估一檔股票。strategy 為策略 dict（含 params），不給就用預設值。"""
+def evaluate(stock_id: str, name: str, strategy: dict | None = None, latest_date=None) -> Optional[dict]:
+    """評估一檔股票。strategy 為策略 dict（含 params），不給就用預設值。
+
+    latest_date 為今日股票池的資料日；股價資料還沒更新到這天時會加註風險提示。
+    """
     params = merge_params(strategy)
 
     result = {
@@ -34,11 +37,15 @@ def evaluate(stock_id: str, name: str, strategy: dict | None = None) -> Optional
             and min(roe_vals) > params["roe_threshold"]
         )
 
-        px = get_price_history(stock_id, params["backtest_years"])
+        px = get_price_history(stock_id, params["backtest_years"], latest_date)
         if len(px) < 100:
             result["action"] = "SKIP"
             result["risk_notes"].append("價格資料不足")
             return result
+        if latest_date is not None and px["date"].max() < pd.Timestamp(latest_date):
+            result["risk_notes"].append(
+                f"FinMind 股價只到 {px['date'].max():%Y-%m-%d}，尚未更新到 {latest_date}"
+            )
 
         px = add_indicators(px)
         latest = px.iloc[-1]

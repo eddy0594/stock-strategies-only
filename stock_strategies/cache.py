@@ -184,13 +184,14 @@ def fetch_finmind_cached(
     end_date: str | None = None,
     *,
     fresh_days: int | None = None,
+    min_date=None,
     force_refresh: bool = False,
     timeout: int = 30,
     max_retries: int = RATE_LIMIT_MAX_RETRIES,
 ) -> pd.DataFrame:
     """帶 parquet 快取 + 限流退避的 FinMind 取數。
 
-    - 命中新鮮快取 → 直接回（不打 API）
+    - 命中新鮮快取 → 直接回（不打 API）；有給 min_date 時，快取已含 min_date 當天即視為新鮮
     - 過期 → 增量抓 max_date 之後並合併去重
     - 冷啟動 → 全抓並寫快取
     回傳已正規化 date（datetime64）、升冪排序、去重後的 DataFrame；
@@ -198,7 +199,11 @@ def fetch_finmind_cached(
     """
     cached = None if force_refresh else _read_cache(dataset, data_id)
 
-    if cached is not None and not force_refresh and _is_fresh(dataset, data_id, fresh_days):
+    if min_date is not None and cached is not None and len(cached) and "date" in cached.columns:
+        fresh = cached["date"].max() >= pd.Timestamp(min_date)
+    else:
+        fresh = _is_fresh(dataset, data_id, fresh_days)
+    if cached is not None and not force_refresh and fresh:
         df = cached
     else:
         params = {

@@ -7,9 +7,9 @@ from api.services import runs
 
 @pytest.fixture
 def services(monkeypatch):
-    monkeypatch.setattr(runs, "read_watchlist", lambda: [{"stock_id": "1", "name": "one"}, {"stock_id": "2"}])
+    monkeypatch.setattr(runs, "current_universe", lambda: {"items": [{"stock_id": "1", "name": "one"}, {"stock_id": "2"}]})
     monkeypatch.setattr(runs, "get_market_state", lambda _: {"bullish": False, "note": "bear"})
-    monkeypatch.setattr(runs, "evaluate", lambda sid, name, strategy: {
+    monkeypatch.setattr(runs, "evaluate", lambda sid, name, strategy, latest_date=None: {
         "stock_id": sid, "name": name, "action": "BUY", "signal_score": 70, "risk_notes": [],
     })
     return {"id": "test", "name": "test", "params": {}}
@@ -33,6 +33,18 @@ def test_one_failed_stock_does_not_discard_the_run(services, monkeypatch):
     result = runs.screen(services, delay=0)
     assert result["summary"]["error"] == 1
     assert result["summary"]["skip"] == 1
+
+
+def test_numpy_values_in_results_become_plain_python(services, monkeypatch):
+    import json
+    import numpy as np
+    monkeypatch.setattr(runs, "evaluate", lambda sid, name, strategy, latest_date=None: {
+        "stock_id": sid, "action": "BUY", "signal_score": np.float64(70.5),
+        "components": {"fundamental_pass": np.bool_(True), "tech_signals": [np.int64(1)]},
+    })
+    result = runs.screen(services, delay=0)
+    json.dumps(result)
+    assert result["results"][0]["components"]["fundamental_pass"] is True
 
 
 def test_cancellation_stops_before_next_stock(services, monkeypatch):
@@ -129,3 +141,17 @@ def test_synchronous_run_returns_same_result(services):
         assert store.run_sync(services) == {"ok": True}
     finally:
         store.shutdown()
+
+
+def test_universe_is_top_by_value_without_waiting_and_cached(monkeypatch):
+    calls = []
+    def fake(**kwargs):
+        calls.append(kwargs)
+        return {"items": [{"stock_id": "2330"}], "data_date": None, "is_today": False, "notes": []}
+    monkeypatch.setattr(runs, "get_daily_universe", fake)
+    monkeypatch.setattr(runs, "_universe_cache", {"at": None, "value": None})
+    monkeypatch.setenv("TOP_N", "50")
+    monkeypatch.delenv("INCLUDE_TPEX", raising=False)
+    assert runs.current_universe()["items"] == [{"stock_id": "2330"}]
+    runs.current_universe()
+    assert calls == [{"n": 50, "include_tpex": True, "wait_minutes": 0}]

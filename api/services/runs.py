@@ -3,22 +3,60 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timezone
+import os
 import threading
 import time
 import uuid
 
+import numpy as np
+
 from stock_strategies.evaluate import evaluate
 from stock_strategies.market import apply_market_filter, get_market_state
-from stock_strategies.sheet import read_watchlist
+from stock_strategies.universe import get_daily_universe
+
+UNIVERSE_TTL_SECONDS = 600
+_universe_lock = threading.Lock()
+_universe_cache = {"at": None, "value": None}
+
+
+def current_universe():
+    """網頁用股票池：上市＋上櫃成交值前 N 名。
+
+    不等待盤後更新，直接用最新一天的資料（假日也能跑）；10 分鐘內重用，避免每次開頁都打交易所。
+    """
+    with _universe_lock:
+        cached_at = _universe_cache["at"]
+        if cached_at is not None and time.monotonic() - cached_at < UNIVERSE_TTL_SECONDS:
+            return _universe_cache["value"]
+        value = get_daily_universe(
+            n=int(os.environ.get("TOP_N", "100")),
+            include_tpex=os.environ.get("INCLUDE_TPEX", "1") == "1",
+            wait_minutes=0,
+        )
+        _universe_cache.update(at=time.monotonic(), value=value)
+        return value
+
+
+def _plain(value):
+    """Convert numpy scalars (e.g. numpy.bool) nested in results to JSON-serializable Python types."""
+    if isinstance(value, dict):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
 
 
 def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
     cancel = cancel or threading.Event()
     report = progress or (lambda **state: None)
+    latest_date = None
     if cancel.is_set():
         rows = []
     else:
-        rows = read_watchlist()
+        universe = current_universe()
+        rows, latest_date = universe["items"], universe.get("data_date")
     if limit is not None:
         rows = rows[:limit]
     total = len(rows)
@@ -36,7 +74,7 @@ def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
         sid, name = str(row["stock_id"]), row.get("name", "")
         report(completed=index, total=total, current=sid)
         try:
-            result = evaluate(sid, name, strategy=strategy)
+            result = evaluate(sid, name, strategy=strategy, latest_date=latest_date)
             if result is None:
                 raise ValueError("未回傳評估結果")
         except Exception as exc:
@@ -49,7 +87,7 @@ def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
     downgraded = apply_market_filter(results, market) if market_enabled else 0
     order = {"BUY": 0, "WATCH": 1, "SKIP": 2, "ERROR": 3}
     results.sort(key=lambda row: (order.get(row.get("action"), 4), -(row.get("signal_score") or 0)))
-    return {
+    return _plain({
         "strategy": {"id": strategy["id"], "name": strategy["name"]},
         "market": market,
         "downgraded": downgraded,
@@ -58,7 +96,7 @@ def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
             for action in order
         }},
         "results": results,
-    }
+    })
 
 
 class RunBusy(RuntimeError):

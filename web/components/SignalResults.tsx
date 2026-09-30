@@ -64,8 +64,8 @@ export default function SignalResults({ run }: { run: RunResult }) {
       </select>
       <span className="text-xs text-muted sm:ml-auto">顯示 {rows.length} / {run.summary.total} 檔</span>
     </div>
-    {!rows.length ? <EmptyState title={run.summary.total ? "沒有符合條件的股票" : "觀察池尚無可評估股票"}>
-      {run.summary.total ? <button onClick={() => { setFilter("ALL"); setQuery(""); }} className="btn-ghost mt-3">清除篩選</button> : "請確認 Google Sheet 的 watchlist 已有啟用的股票。"}
+    {!rows.length ? <EmptyState title={run.summary.total ? "沒有符合條件的股票" : "股票池尚無可評估股票"}>
+      {run.summary.total ? <button onClick={() => { setFilter("ALL"); setQuery(""); }} className="btn-ghost mt-3">清除篩選</button> : "無法取得成交值排行，請確認證交所／櫃買中心連線後重試。"}
     </EmptyState> : <div className="overflow-hidden rounded-xl border border-line bg-panel">
       <div className="hidden grid-cols-[1.5fr_1fr_1fr_1fr_1fr_24px] gap-4 border-b border-line bg-panel2/50 px-5 py-3 text-xs text-muted md:grid" aria-hidden="true">
         <span>股票 / 訊號</span><span>綜合評分</span><span>5 日 / 20 日漲跌</span><span>回測勝率</span><span>參考收盤價</span><span />
