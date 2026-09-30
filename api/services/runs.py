@@ -38,10 +38,12 @@ def current_universe():
 def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
     cancel = cancel or threading.Event()
     report = progress or (lambda **state: None)
+    latest_date = None
     if cancel.is_set():
         rows = []
     else:
-        rows = current_universe()["items"]
+        universe = current_universe()
+        rows, latest_date = universe["items"], universe.get("data_date")
     if limit is not None:
         rows = rows[:limit]
     total = len(rows)
@@ -59,7 +61,7 @@ def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
         sid, name = str(row["stock_id"]), row.get("name", "")
         report(completed=index, total=total, current=sid)
         try:
-            result = evaluate(sid, name, strategy=strategy)
+            result = evaluate(sid, name, strategy=strategy, latest_date=latest_date)
             if result is None:
                 raise ValueError("未回傳評估結果")
         except Exception as exc:

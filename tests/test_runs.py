@@ -9,7 +9,7 @@ from api.services import runs
 def services(monkeypatch):
     monkeypatch.setattr(runs, "current_universe", lambda: {"items": [{"stock_id": "1", "name": "one"}, {"stock_id": "2"}]})
     monkeypatch.setattr(runs, "get_market_state", lambda _: {"bullish": False, "note": "bear"})
-    monkeypatch.setattr(runs, "evaluate", lambda sid, name, strategy: {
+    monkeypatch.setattr(runs, "evaluate", lambda sid, name, strategy, latest_date=None: {
         "stock_id": sid, "name": name, "action": "BUY", "signal_score": 70, "risk_notes": [],
     })
     return {"id": "test", "name": "test", "params": {}}

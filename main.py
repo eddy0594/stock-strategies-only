@@ -91,7 +91,7 @@ def main():
         sid = str(row["stock_id"])
         name = row.get("name", "")
         print(f"[{i}/{len(watchlist)}] {sid} {name}")
-        r = evaluate(sid, name)
+        r = evaluate(sid, name, latest_date=uni["data_date"])
         if r:
             results.append(r)
         time.sleep(0.6)

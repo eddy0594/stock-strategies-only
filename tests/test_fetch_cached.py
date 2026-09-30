@@ -115,3 +115,15 @@ def test_financial_statements_use_quarterly_freshness():
                        pd.DataFrame({"date": pd.to_datetime(["2026-03-31"])}))
     assert cache._is_fresh("TaiwanStockBalanceSheet", "TEST_Q2", None,
                            today=pd.Timestamp("2026-06-15")) is True
+
+
+def test_min_date_uses_cache_once_latest_trading_day_is_present(monkeypatch):
+    """給最新交易日時：快取已含該日就不打 API（週末、盤中重跑不耗額度），缺該日才增量抓。"""
+    rows = [[{"date": "2020-01-02", "close": 10}, {"date": "2020-01-03", "close": 11}]]
+    state = _patch_api(monkeypatch, rows)
+    cache.fetch_finmind_cached("TaiwanStockPrice", "2330", "2020-01-01", min_date="2020-01-03")
+    assert state["n"] == 1
+    cache.fetch_finmind_cached("TaiwanStockPrice", "2330", "2020-01-01", min_date="2020-01-03")
+    assert state["n"] == 1   # 快取已有 01-03，雖然距今很久也不重抓
+    cache.fetch_finmind_cached("TaiwanStockPrice", "2330", "2020-01-01", min_date="2020-01-06")
+    assert state["n"] == 2   # 缺 01-06 → 增量抓

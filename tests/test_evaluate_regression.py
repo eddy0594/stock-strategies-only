@@ -30,3 +30,15 @@ def test_notifications_handle_missing_and_zero_winrate(winrate, label):
         "components": {"backtest_winrate": winrate, "backtest_samples": 0},
     }
     assert label in "\n".join(format_messages([stock]))
+
+
+def test_stale_finmind_price_is_flagged(monkeypatch):
+    from datetime import date
+    monkeypatch.setattr(module, "get_fundamental", lambda _: {"eps": {}, "roe": {}})
+    px = make_price_df()
+    monkeypatch.setattr(module, "get_price_history", lambda *_: px)
+    last = px["date"].max().date()
+    fresh = module.evaluate("2330", "test", latest_date=last)
+    assert not any("尚未更新" in n for n in fresh["risk_notes"])
+    stale = module.evaluate("2330", "test", latest_date=date(last.year + 1, 1, 2))
+    assert any("尚未更新" in n for n in stale["risk_notes"])
