@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [picked, setPicked] = useState("");
   const [market, setMarket] = useState<Market | null>(null);
   const [watchCount, setWatchCount] = useState<number | null>(null);
+  const [watchInfo, setWatchInfo] = useState<{ date?: string | null; isToday?: boolean; notes?: string[] }>({});
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketLoading] = useState(true);
   const [watchLoading, setWatchLoading] = useState(true);
@@ -33,7 +34,7 @@ export default function Dashboard() {
       if (usable.length !== data.strategies.length) fail("strategies", new Error("部分策略檔無法讀取，請到策略庫查看"));
     }).catch(error => fail("strategies", error)).finally(() => { if (!signal.aborted) setLoading(false); });
     api.getMarket(signal).then(setMarket).catch(error => fail("market", error)).finally(() => { if (!signal.aborted) setMarketLoading(false); });
-    api.getWatchlist(signal).then(data => { setWatchCount(data.items.length); if (data.error) fail("watchlist", new Error(data.error)); }).catch(error => fail("watchlist", error)).finally(() => { if (!signal.aborted) setWatchLoading(false); });
+    api.getWatchlist(signal).then(data => { setWatchCount(data.items.length); setWatchInfo({ date: data.data_date, isToday: data.is_today, notes: data.notes }); if (data.error) fail("watchlist", new Error(data.error)); }).catch(error => fail("watchlist", error)).finally(() => { if (!signal.aborted) setWatchLoading(false); });
     return () => controller.abort();
   }, [reload]);
   const selected = strategies.find(s => s.id === picked);
@@ -43,7 +44,7 @@ export default function Dashboard() {
     <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">YOUR MARKET, IN FOCUS</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">今日訊號</h1><p className="mt-2 text-sm text-muted">從市場脈動到個股判斷，讓每一次研究都有依據。</p></div><Link href="/strategies" className="btn-ghost">管理策略 <span aria-hidden="true">↗</span></Link></div>
     <div className="grid gap-4 md:grid-cols-3">
       <div className="card relative overflow-hidden"><p className="label">加權指數 · 市場狀態</p><div className={`mt-3 text-2xl font-semibold ${marketKnown ? displayedMarket?.bullish ? "text-rise" : "text-fall" : "text-muted"}`}>{marketLoading && !displayedMarket ? "載入中…" : !marketKnown ? "資料待確認" : displayedMarket?.bullish ? "▲ 站上均線" : "▼ 跌破均線"}</div><p className="mt-3 text-xs leading-6 text-muted">{errors.market || displayedMarket?.note || "市場資料尚未取得"}</p>{marketKnown && <div className="mt-3 border-t border-line pt-3 font-mono text-xs text-muted">加權 {displayedMarket?.close?.toLocaleString("zh-TW")} <span className="mx-2">/</span> 均線 {displayedMarket?.ma20?.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</div>}</div>
-      <div className="card"><p className="label">我的觀察池</p><div className="mt-3 font-mono text-3xl">{watchLoading ? "—" : errors.watchlist ? "—" : watchCount ?? "—"}<span className="ml-2 text-sm text-muted">檔股票</span></div><p className="mt-3 text-xs leading-6 text-muted">{errors.watchlist ? "尚未連接觀察池，請確認 Google Sheet 設定。" : "同步 Google Sheet 中啟用的股票，每次執行重新讀取。"}</p></div>
+      <div className="card"><p className="label">今日股票池 · 成交值排行</p><div className="mt-3 font-mono text-3xl">{watchLoading ? "—" : errors.watchlist ? "—" : watchCount ?? "—"}<span className="ml-2 text-sm text-muted">檔股票</span></div><p className="mt-3 text-xs leading-6 text-muted">{errors.watchlist ? "無法取得證交所／櫃買中心盤後資料，請稍後再試。" : `上市＋上櫃普通股依成交值排序${watchInfo.date ? `，資料日 ${watchInfo.date}${watchInfo.isToday === false ? "（非今日，沿用最新交易日）" : ""}` : ""}。`}{watchInfo.notes?.map(note => <span key={note} className="block text-watch">{note}</span>)}</p></div>
       <div className="card"><p className="label">策略工作區</p><div className="mt-3 font-mono text-3xl">{loading ? "—" : strategies.length}<span className="ml-2 text-sm text-muted">個可用策略</span></div><p className="mt-3 text-xs leading-6 text-muted">用既有策略開始，或建立適合自己的篩選條件。</p><Link href="/strategies/ai" className="mt-3 inline-block text-xs text-blue-300 hover:underline">用 AI 設計策略 →</Link></div>
     </div>
     {!!Object.keys(errors).length && <ErrorCard message={Object.values(errors).join("；")} retry={() => setReload(value => value + 1)} />}

@@ -94,6 +94,14 @@ async function jfetch<T>(path: string, init?: RequestInit, timeout = 30_000): Pr
   }
 }
 
+export type Watchlist = {
+  items: { stock_id: string; name?: string; market?: string; trade_value?: number }[];
+  data_date?: string | null;
+  is_today?: boolean;
+  notes?: string[];
+  error?: string;
+};
+
 export const api = {
   listStrategies: (signal?: AbortSignal) => jfetch<{ strategies: Strategy[] }>("/api/strategies", { signal }),
   getDefaults: (signal?: AbortSignal) => jfetch<{ params: StrategyParams }>("/api/strategies/defaults", { signal }),
@@ -102,7 +110,7 @@ export const api = {
   deleteStrategy: (id: string) => jfetch<{ ok: boolean }>(`/api/strategies/${encodeURIComponent(id)}`, { method: "DELETE" }),
   generateAI: (prompt: string, name?: string) => jfetch<Strategy>("/api/strategies/generate", { method: "POST", body: JSON.stringify({ prompt, name }) }, 120_000),
   getMarket: (signal?: AbortSignal) => jfetch<Market>("/api/market", { signal }),
-  getWatchlist: (signal?: AbortSignal) => jfetch<{ items: { stock_id: string; name?: string }[]; error?: string }>("/api/watchlist", { signal }),
+  getWatchlist: (signal?: AbortSignal) => jfetch<Watchlist>("/api/watchlist", { signal }),
   startRun: (strategy_id: string) => jfetch<RunJob>("/api/runs", { method: "POST", body: JSON.stringify({ strategy_id }) }),
   getRun: (id: string, signal?: AbortSignal) => jfetch<RunJob>(`/api/runs/${encodeURIComponent(id)}`, { signal }),
   cancelRun: (id: string) => jfetch<RunJob>(`/api/runs/${encodeURIComponent(id)}`, { method: "DELETE" }),

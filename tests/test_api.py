@@ -66,3 +66,25 @@ def test_job_http_lifecycle_and_shared_admission_control(client, monkeypatch):
     finished = client.get(f"/api/runs/{job_id}").json()
     assert finished["status"] == "cancelled"
     assert finished["result"]["summary"]["total"] == 0
+
+
+def test_watchlist_returns_universe_with_data_date(client, monkeypatch):
+    from datetime import date
+    import api.main as api_main
+    monkeypatch.setattr(api_main, "current_universe", lambda: {
+        "items": [{"stock_id": "2330", "name": "台積電"}],
+        "data_date": date(2026, 9, 30), "is_today": True, "notes": [],
+    })
+    body = client.get("/api/watchlist").json()
+    assert body["items"][0]["stock_id"] == "2330"
+    assert body["data_date"] == "2026-09-30" and body["is_today"] is True
+
+
+def test_watchlist_error_does_not_500(client, monkeypatch):
+    import api.main as api_main
+    def boom():
+        raise RuntimeError("TWSE down")
+    monkeypatch.setattr(api_main, "current_universe", boom)
+    response = client.get("/api/watchlist")
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "error": "TWSE down"}

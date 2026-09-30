@@ -7,7 +7,7 @@ from api.services import runs
 
 @pytest.fixture
 def services(monkeypatch):
-    monkeypatch.setattr(runs, "read_watchlist", lambda: [{"stock_id": "1", "name": "one"}, {"stock_id": "2"}])
+    monkeypatch.setattr(runs, "current_universe", lambda: {"items": [{"stock_id": "1", "name": "one"}, {"stock_id": "2"}]})
     monkeypatch.setattr(runs, "get_market_state", lambda _: {"bullish": False, "note": "bear"})
     monkeypatch.setattr(runs, "evaluate", lambda sid, name, strategy: {
         "stock_id": sid, "name": name, "action": "BUY", "signal_score": 70, "risk_notes": [],
@@ -129,3 +129,17 @@ def test_synchronous_run_returns_same_result(services):
         assert store.run_sync(services) == {"ok": True}
     finally:
         store.shutdown()
+
+
+def test_universe_is_top_by_value_without_waiting_and_cached(monkeypatch):
+    calls = []
+    def fake(**kwargs):
+        calls.append(kwargs)
+        return {"items": [{"stock_id": "2330"}], "data_date": None, "is_today": False, "notes": []}
+    monkeypatch.setattr(runs, "get_daily_universe", fake)
+    monkeypatch.setattr(runs, "_universe_cache", {"at": None, "value": None})
+    monkeypatch.setenv("TOP_N", "50")
+    monkeypatch.delenv("INCLUDE_TPEX", raising=False)
+    assert runs.current_universe()["items"] == [{"stock_id": "2330"}]
+    runs.current_universe()
+    assert calls == [{"n": 50, "include_tpex": True, "wait_minutes": 0}]
