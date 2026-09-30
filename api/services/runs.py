@@ -8,6 +8,8 @@ import threading
 import time
 import uuid
 
+import numpy as np
+
 from stock_strategies.evaluate import evaluate
 from stock_strategies.market import apply_market_filter, get_market_state
 from stock_strategies.universe import get_daily_universe
@@ -33,6 +35,17 @@ def current_universe():
         )
         _universe_cache.update(at=time.monotonic(), value=value)
         return value
+
+
+def _plain(value):
+    """Convert numpy scalars (e.g. numpy.bool) nested in results to JSON-serializable Python types."""
+    if isinstance(value, dict):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
 
 
 def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
@@ -74,7 +87,7 @@ def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
     downgraded = apply_market_filter(results, market) if market_enabled else 0
     order = {"BUY": 0, "WATCH": 1, "SKIP": 2, "ERROR": 3}
     results.sort(key=lambda row: (order.get(row.get("action"), 4), -(row.get("signal_score") or 0)))
-    return {
+    return _plain({
         "strategy": {"id": strategy["id"], "name": strategy["name"]},
         "market": market,
         "downgraded": downgraded,
@@ -83,7 +96,7 @@ def screen(strategy, limit=None, *, progress=None, cancel=None, delay=0.4):
             for action in order
         }},
         "results": results,
-    }
+    })
 
 
 class RunBusy(RuntimeError):

@@ -35,6 +35,18 @@ def test_one_failed_stock_does_not_discard_the_run(services, monkeypatch):
     assert result["summary"]["skip"] == 1
 
 
+def test_numpy_values_in_results_become_plain_python(services, monkeypatch):
+    import json
+    import numpy as np
+    monkeypatch.setattr(runs, "evaluate", lambda sid, name, strategy, latest_date=None: {
+        "stock_id": sid, "action": "BUY", "signal_score": np.float64(70.5),
+        "components": {"fundamental_pass": np.bool_(True), "tech_signals": [np.int64(1)]},
+    })
+    result = runs.screen(services, delay=0)
+    json.dumps(result)
+    assert result["results"][0]["components"]["fundamental_pass"] is True
+
+
 def test_cancellation_stops_before_next_stock(services, monkeypatch):
     cancel = threading.Event()
     seen = []
