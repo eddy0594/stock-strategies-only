@@ -9,7 +9,7 @@ on:
 jobs:
   run-signal:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -30,4 +30,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_CREDS_JSON: ${{ secrets.GOOGLE_CREDS_JSON }}
+          # 每日股票池：上市＋上櫃成交值前 N 名
+          TOP_N: "100"
+          INCLUDE_TPEX: "1"
+          # 排程執行時，盤後資料還沒更新會最多等 60 分鐘；等不到視為休市日並略過
+          UNIVERSE_WAIT_MINUTES: "60"
+          # 手動執行（Run workflow）時不等待，直接用最新一天的資料，方便假日測試
+          ALLOW_STALE_DATA: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
         run: uv run python main.py

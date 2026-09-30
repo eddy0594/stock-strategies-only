@@ -22,7 +22,6 @@ except ImportError:
     pass
 
 from stock_strategies.sheet import (
-    read_watchlist,
     append_signals,
     read_performance,
     write_performance,
@@ -36,6 +35,7 @@ from stock_strategies.night_session import (
     night_filter_note,
 )
 from stock_strategies.performance import update_performance, summary as perf_summary
+from stock_strategies.universe import get_daily_universe, today_tw
 
 
 REQUIRED_ENV = [
@@ -53,10 +53,26 @@ def main():
         print(f"❌ 缺少環境變數: {missing}", file=sys.stderr)
         sys.exit(1)
 
-    # 1. 讀取 watchlist
-    print(f"[{datetime.now()}] 讀取 watchlist...")
-    watchlist = read_watchlist()
-    print(f"  → {len(watchlist)} 檔啟用中")
+    # 1. 取得今日股票池：上市＋上櫃成交值前 N 名（取代 Google Sheet Watchlist）
+    top_n = int(os.environ.get("TOP_N", "100"))
+    include_tpex = os.environ.get("INCLUDE_TPEX", "1") == "1"
+    allow_stale = os.environ.get("ALLOW_STALE_DATA", "0") == "1"
+    wait_minutes = 0 if allow_stale else int(os.environ.get("UNIVERSE_WAIT_MINUTES", "60"))
+
+    print(f"[{datetime.now()}] 取得成交值前 {top_n} 名（{'上市＋上櫃' if include_tpex else '僅上市'}）...")
+    uni = get_daily_universe(n=top_n, include_tpex=include_tpex, wait_minutes=wait_minutes)
+    for note in uni["notes"]:
+        print(f"  ⚠️ {note}")
+    if not uni["is_today"] and not allow_stale:
+        msg = (
+            f"📭 今天（{today_tw()}）沒有取得當日盤後資料，最新資料日為 {uni['data_date']}，"
+            "可能是休市日，本次選股略過。"
+        )
+        print(msg)
+        send_telegram(msg)
+        return
+    watchlist = uni["items"]
+    print(f"  → 資料日 {uni['data_date']}，共 {len(watchlist)} 檔")
 
     # 2. 取得大盤狀態（濾鏡）
     print("取得大盤狀態...")

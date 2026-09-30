@@ -53,7 +53,8 @@ def fetch_finmind(
 
 def get_price_history(stock_id: str, years: int = 3) -> pd.DataFrame:
     start = (datetime.now() - timedelta(days=365 * years + 60)).strftime("%Y-%m-%d")
-    df = fetch_finmind_cached("TaiwanStockPrice", stock_id, start)
+    # fresh_days=0：每日選股必須用到最新一天的收盤價，快取不是今天的就增量更新
+    df = fetch_finmind_cached("TaiwanStockPrice", stock_id, start, fresh_days=0)
     if df.empty:
         return df
     df = df.rename(columns={"max": "high", "min": "low", "Trading_Volume": "volume"})
